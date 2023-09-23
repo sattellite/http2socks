@@ -106,9 +106,14 @@ func (p *forwardProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	resp, err := client.Do(req)
 	if err != nil {
 		http.Error(w, "Server Error", http.StatusInternalServerError)
-		log.Fatal("ServeHTTP:", err)
+		log.Printf("ServeHTTP request error: %+v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		closeErr := resp.Body.Close()
+		if closeErr != nil {
+			log.Printf("ServeHTTP close body error: %+v", closeErr)
+		}
+	}()
 
 	log.Println(req.RemoteAddr, " ", resp.Status)
 
@@ -117,7 +122,10 @@ func (p *forwardProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body)
+	_, copyErr := io.Copy(w, resp.Body)
+	if copyErr != nil {
+		log.Printf("ServeHTTP copy body error: %+v", copyErr)
+	}
 }
 
 func main() {
