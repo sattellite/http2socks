@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // Hop-by-hop headers. These are removed when sent to the backend.
@@ -76,7 +77,7 @@ func appendHostToXForwardHeader(header http.Header, host string) {
 	header.Set("X-Forwarded-For", host)
 }
 
-type forwardProxy struct {}
+type forwardProxy struct{}
 
 func (p *forwardProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// The "Host:" header is promoted to Request.Host and is removed from
@@ -91,7 +92,21 @@ func (p *forwardProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	client := &http.Client{}
+	// Client request timeouts from cloudflare blog recommendations
+	// https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
+
 	// When a http.Request is sent through an http.Client, RequestURI should not
 	// be set (see documentation of this field).
 	req.RequestURI = ""
