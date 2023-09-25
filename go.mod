@@ -4,5 +4,5 @@ go 1.21
 
 require (
 	github.com/cristalhq/aconfig v0.18.5
-	github.com/davecgh/go-spew v1.1.1
+	golang.org/x/net v0.15.0
 )

@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
+	"golang.org/x/net/proxy"
 )
 
 // Hop-by-hop headers. These are removed when sent to the backend.
@@ -36,7 +36,7 @@ var hopHeaders = []string{
 	"Keep-Alive",
 	"Proxy-Authenticate",
 	"Proxy-Authorization",
-	"Te",      // canonicalized version of "TE"
+	"Te",      // canonical version of "TE"
 	"Trailer", // spelling per https://www.rfc-editor.org/errata_search.php?eid=4522
 	"Transfer-Encoding",
 	"Upgrade",
@@ -78,30 +78,17 @@ func appendHostToXForwardHeader(header http.Header, host string) {
 	header.Set("X-Forwarded-For", host)
 }
 
-func getHTTPClient() *http.Client {
-	// Client request timeouts from cloudflare blog recommendations
-	// https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/
-	return &http.Client{
-		Timeout: 15 * time.Second,
-		Transport: &http.Transport{
-			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
-			}).DialContext,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ResponseHeaderTimeout: 10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
-	}
+type forwardProxy struct {
+	SocksServer   string
+	SocksUser     string
+	SocksPassword string
 }
-
-type forwardProxy struct{}
 
 func (p *forwardProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// The "Host:" header is promoted to Request.Host and is removed from
 	// request.Header by net/http, so we print it out explicitly.
-	log.Println(req.RemoteAddr, "\t\t", req.Method, "\t\t", req.URL, "\t\t Host:", req.Host)
-	log.Println("\t\t\t\t\t", req.Header)
+	log.Printf("%s\t%s\t%s\tHost: %s\n", req.RemoteAddr, req.Method, req.URL, req.Host)
+	log.Println("\t", req.Header)
 
 	if req.URL.Scheme != "http" && req.URL.Scheme != "https" {
 		msg := "unsupported protocol scheme " + req.URL.Scheme
@@ -110,9 +97,9 @@ func (p *forwardProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	client := getHTTPClient()
+	client := p.getHTTPClient()
 
-	// When a http.Request is sent through an http.Client, RequestURI should not
+	// When a http.Request is sent through a http.Client, RequestURI should not
 	// be set (see documentation of this field).
 	req.RequestURI = ""
 
@@ -148,18 +135,46 @@ func (p *forwardProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func (p *forwardProxy) getHTTPClient() *http.Client {
+	auth := proxy.Auth{
+		User:     p.SocksUser,
+		Password: p.SocksPassword,
+	}
+
+	dialer, err := proxy.SOCKS5("tcp", p.SocksServer, &auth, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	contextDialer := dialer.(proxy.ContextDialer)
+
+	// Client request timeouts from cloudflare blog recommendations
+	// https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/
+	return &http.Client{
+		Timeout: 15 * time.Second,
+		Transport: &http.Transport{
+			DialContext:           contextDialer.DialContext,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
+}
+
 func main() {
 	config, configErr := loadConfig()
 	if configErr != nil {
 		log.Fatal(configErr)
 	}
 
-	spew.Dump(config)
-
-	proxy := &forwardProxy{}
+	fp := &forwardProxy{
+		SocksServer:   config.SocksProxy,
+		SocksUser:     config.SocksProxyUser,
+		SocksPassword: config.SocksProxyPassword,
+	}
 
 	log.Println("Starting proxy server on", config.HTTPAddress)
-	if err := http.ListenAndServe(config.HTTPAddress, proxy); err != nil {
+	if err := http.ListenAndServe(config.HTTPAddress, fp); err != nil {
 		log.Fatal("ListenAndServe:", err)
 	}
 }
