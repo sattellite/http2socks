@@ -1,0 +1,234 @@
+run:
+  # Maximal timeout for analysis
+  timeout: 5m
+
+  # Fail if the error was met.
+  issues-exit-code: 1
+
+  # This is very important, bugs in tests are not acceptable either.
+  tests: true
+
+#  # Up to you, good for a big enough repo with no-Go code.
+#  skip-dirs:
+#    - vendor
+
+  # When enabled linter will skip directories: vendor$, third_party$, testdata$, examples$, Godeps$, builtin$
+  skip-dirs-use-default: true
+
+  # With the read-only mode linter will fail if go.mod file is outdated.
+  modules-download-mode: readonly
+
+  # Never ran 2 golangci-lint at once.
+  allow-parallel-runners: false
+
+output:
+  # Follow the path and see the line in an IDE to understand it better.
+  print-issued-lines: false
+
+  # Must have. Easier to understand the output.
+  print-linter-name: true
+
+  # No, no skips, everything should be reported.
+  uniq-by-line: false
+
+  # Slightly easier to follow the results + getting deterministic output.
+  sort-results: true
+
+linters:
+  # Set to true runs only fast linters.
+  # Good option for 'lint on save', pre-commit hook or CI.
+  fast: false
+
+  enable:
+    # Check for pass []any as any in variadic func(...any).
+    # Rare case but saved me from debugging a few times.
+    - asasalint
+
+    # I prefer plane ASCII identifiers.
+    # Symbol `∆` instead of `delta` looks cool but no thanks.
+    - asciicheck
+
+    # Checks for dangerous unicode character sequences.
+    # Super rare but why not to be a bit paranoid?
+    - bidichk
+
+    # Checks whether HTTP response body is closed successfully.
+    - bodyclose
+
+    # Check whether the function uses a non-inherited context.
+    - contextcheck
+
+    # Tool for code clone detection.
+    - dupl
+
+    # Check for two durations multiplied together.
+    - durationcheck
+
+    # Forces to not skip error check.
+    - errcheck
+
+    # Checks `Err-` prefix for var and `-Error` suffix for error type.
+    - errname
+
+    # Suggests to use `%w` for error-wrapping.
+    - errorlint
+
+    # Checks for pointers to enclosing loop variables.
+    - exportloopref
+
+    # Provides diagnostics that check for bugs, performance and style issues.
+    - gocritic
+
+    # Computes and checks the cyclomatic complexity of functions.
+    - gocyclo
+
+    # Check import statements are formatted according to the 'goimport' command.
+    - gofmt
+    - gofumpt
+    - goimports
+
+    # Powerful security-oriented linter. But requires some time to
+    # configure it properly, see https://github.com/securego/gosec#available-rules
+    - gosec
+
+    # Linter for Go source code that specializes in simplifying code.
+    - gosimple
+
+    # Vet examines Go source code and reports suspicious constructs,
+    # such as Printf calls whose arguments do not align with the format string.
+    - govet
+
+    # Detects when assignments to existing variables are not used.
+    - ineffassign
+
+    # Even with deprecation notice I find it useful.
+    # There are situations when instead of io.ReaderCloser
+    # I can use io.Reader. A small but good improvement.
+    - interfacer
+
+    # Finds commonly misspelled English words in comments.
+    - misspell
+
+    # Finds naked returns in functions greater than a specified function length.
+    - nakedret
+
+    # Both require a bit more explicit returns.
+    - nilerr
+    - nilnil
+
+    # Finds sending HTTP request without context.Context.
+    - noctx
+
+    # Finds slice declarations that could potentially be pre-allocated.
+    - prealloc
+
+    # Checks that package variables are not reassigned.
+    # Super rare case but can catch bad things (like `io.EOF = nil`)
+    - reassign
+
+    # Fast, configurable, extensible, flexible, and beautiful linter for Go.
+    - revive
+
+    # Replacement for `megacheck`, `unused` and `gosimple`.
+    - staticcheck
+
+    # Is a replacement for `golint`, similar to `revive`.
+    - stylecheck
+
+    # Like the front-end of a Go compiler, parses and type-checks Go code.
+    - typecheck
+
+    # Remove unnecessary type conversions.
+    - unconvert
+
+    # Reports unused function parameters.
+    - unparam
+
+    # Detect the possibility to use variables/constants from stdlib.
+    - usestdlibvars
+
+    # Finds wasted assignment statements.
+    - wastedassign
+
+disable:
+  # Globals and init() are ok.
+  - gochecknoglobals
+  - gochecknoinits
+
+
+disable-all: true
+
+
+linters-settings:
+  dupl:
+    threshold: 300
+
+  errcheck:
+    # Report `a := b.(MyStruct)` when `a, ok := ...` should be.
+    check-type-assertions: true # Default: false
+
+    ## Report skipped checks:`num, _ := strconv.Atoi(numStr)`.
+    #check-blank: true # Default: false
+
+    # Function to skip.
+    exclude-functions:
+      - io/ioutil.ReadFile
+      - io.Copy(*bytes.Buffer)
+      - io.Copy(os.Stdout)
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      # These 3 will detect many cases, but they do sense
+      # if it's performance oriented code
+      - hugeParam
+      - rangeExprCopy
+      - rangeValCopy
+
+  gosec:
+    excludes:
+      - G114
+
+  goimports:
+    local-prefixes: gitlab.dcsportsoft.com/respectime
+
+  govet:
+    check-shadowing: true
+
+  misspell:
+    locale: US
+
+  revive:
+    confidence: 0.8
+
+issues:
+  # Setting 0 to have all the results.
+  max-issues-per-linter: 0
+
+  # Same here, nothing should be skipped to not miss errors.
+  max-same-issues: 0
+
+  # When set to `true` linter will analyze only new code which are
+  # not committed or after some specific revision. This is a cool
+  # feature when you're going to introduce linter into a big project.
+  # So, it's set to `false` to scan all code.
+  new: false
+
+  # Never fix anything, just report.
+  fix: false
+
+  exclude-rules:
+    - text: "at least one file in a package should have a package comment"
+      linters:
+        - stylecheck
+    - path: _test\.go
+      linters:
+        - gosec
+        - dupl
+
+  exclude-use-default: false
