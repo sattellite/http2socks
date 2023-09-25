@@ -106,6 +106,11 @@ func (p *forwardProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	if req.Method == http.MethodConnect {
+		p.proxyConnect(w, req)
+		return
+	}
+
 	client, clientErr := p.getHTTPClient()
 	if clientErr != nil {
 		msg := fmt.Sprintf("failed create http client: %v", clientErr)
@@ -131,6 +136,9 @@ func (p *forwardProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		log.Printf("ServeHTTP request error: %+v", err)
 	}
 	defer func() {
+		if resp == nil || resp.Body == nil {
+			return
+		}
 		closeErr := resp.Body.Close()
 		if closeErr != nil {
 			log.Printf("ServeHTTP close body error: %+v", closeErr)
@@ -174,6 +182,52 @@ func (p *forwardProxy) getHTTPClient() (*http.Client, error) {
 			ExpectContinueTimeout: 1 * time.Second,
 		},
 	}, nil
+}
+
+func (p *forwardProxy) proxyConnect(w http.ResponseWriter, req *http.Request) {
+	log.Printf("CONNECT requested to %v (from %v)", req.Host, req.RemoteAddr)
+	targetConn, err := net.Dial("tcp", req.Host)
+	if err != nil {
+		log.Println("failed to dial to target", req.Host)
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		log.Println("http server doesn't support hijacking connection")
+		return
+	}
+
+	clientConn, _, err := hj.Hijack()
+	if err != nil {
+		log.Println("http hijacking failed")
+		return
+	}
+
+	log.Println("tunnel established")
+	go p.tunnelConn(targetConn, clientConn)
+	go p.tunnelConn(clientConn, targetConn)
+}
+
+func (p *forwardProxy) tunnelConn(dst io.WriteCloser, src io.ReadCloser) {
+	defer func() {
+		err := dst.Close()
+		if err != nil {
+			log.Println("tunnel: failed close dst")
+		}
+	}()
+	defer func() {
+		err := src.Close()
+		if err != nil {
+			log.Println("tunnel: failed close src")
+		}
+	}()
+	_, err := io.Copy(dst, src)
+	if err != nil {
+		log.Println("tunnel: failed copy")
+	}
 }
 
 func main() {
