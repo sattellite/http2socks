@@ -169,7 +169,7 @@ func (p *forwardProxy) getHTTPClient() (*http.Client, error) {
 		return nil, err
 	}
 
-	contextDialer := dialer.(proxy.ContextDialer)
+	contextDialer := dialer.(proxy.ContextDialer) //nolint:errcheck
 
 	// Client request timeouts from cloudflare blog recommendations
 	// https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/
