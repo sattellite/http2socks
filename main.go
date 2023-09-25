@@ -17,13 +17,14 @@
 package main
 
 import (
-	"flag"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 // Hop-by-hop headers. These are removed when sent to the backend.
@@ -148,13 +149,17 @@ func (p *forwardProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	var addr = flag.String("addr", "127.0.0.1:9999", "proxy address")
-	flag.Parse()
+	config, configErr := loadConfig()
+	if configErr != nil {
+		log.Fatal(configErr)
+	}
+
+	spew.Dump(config)
 
 	proxy := &forwardProxy{}
 
-	log.Println("Starting proxy server on", *addr)
-	if err := http.ListenAndServe(*addr, proxy); err != nil {
+	log.Println("Starting proxy server on", config.HTTPAddress)
+	if err := http.ListenAndServe(config.HTTPAddress, proxy); err != nil {
 		log.Fatal("ListenAndServe:", err)
 	}
 }
