@@ -17,6 +17,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -105,7 +106,13 @@ func (p *forwardProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	client := p.getHTTPClient()
+	client, clientErr := p.getHTTPClient()
+	if clientErr != nil {
+		msg := fmt.Sprintf("failed create http client: %v", clientErr)
+		http.Error(w, msg, http.StatusInternalServerError)
+		log.Println(msg)
+		return
+	}
 
 	// When a http.Request is sent through a http.Client, RequestURI should not
 	// be set (see documentation of this field).
@@ -143,7 +150,7 @@ func (p *forwardProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (p *forwardProxy) getHTTPClient() *http.Client {
+func (p *forwardProxy) getHTTPClient() (*http.Client, error) {
 	auth := proxy.Auth{
 		User:     p.SocksUser,
 		Password: p.SocksPassword,
@@ -151,7 +158,7 @@ func (p *forwardProxy) getHTTPClient() *http.Client {
 
 	dialer, err := proxy.SOCKS5("tcp", p.SocksServer, &auth, nil)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	contextDialer := dialer.(proxy.ContextDialer)
@@ -166,7 +173,7 @@ func (p *forwardProxy) getHTTPClient() *http.Client {
 			ResponseHeaderTimeout: 10 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
 		},
-	}
+	}, nil
 }
 
 func main() {
