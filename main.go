@@ -90,6 +90,14 @@ func (p *forwardProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	log.Printf("%s\t%s\t%s\tHost: %s\n", req.RemoteAddr, req.Method, req.URL, req.Host)
 	log.Println("\t", req.Header)
 
+	if req.URL.Scheme == "" {
+		if req.URL.Port() == "443" {
+			req.URL.Scheme = "https"
+		} else {
+			req.URL.Scheme = "http"
+		}
+	}
+
 	if req.URL.Scheme != "http" && req.URL.Scheme != "https" {
 		msg := "unsupported protocol scheme " + req.URL.Scheme
 		http.Error(w, msg, http.StatusBadRequest)
