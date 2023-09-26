@@ -1,19 +1,8 @@
-// https://github.com/eliben/code-for-blog/blob/master/2022/go-and-proxies/basic-forward-proxy.go
-
-// Implements a sample proxy server in Go. Adapted from httputil.ReverseProxy's
-// implementation
+// Simple HTTP proxy server that connects to a SOCKS proxy server and passes
+// traffic through it.
 //
-// Sample usage: run this program, then elsewhere run
-//
-// $ HTTP_PROXY=127.0.0.1:9999 go run http-client-get-url.go <some url>
-//
-// Then the client will request <some url> through this proxy. Note: if <some
-// url> is on localhost, Go clients will ignore HTTP_PROXY; to force them to use
-// the proxy, either set up a proxy explicitly in the Transport, or set up an
-// alias in /etc/hosts and use that instead of localhost.
-//
-// Eli Bendersky [https://eli.thegreenplace.net]
-// This code is in the public domain.
+// Inspired by an article on Eli's Bendersky blog
+// [https://eli.thegreenplace.net/2022/go-and-proxy-servers-part-1-http-proxies/]
 package main
 
 import (
@@ -169,7 +158,7 @@ func (p *forwardProxy) getHTTPClient() (*http.Client, error) {
 		return nil, err
 	}
 
-	contextDialer := dialer.(proxy.ContextDialer) //nolint:errcheck
+	contextDialer := dialer.(proxy.ContextDialer) //nolint:errcheck // definition of function before it called
 
 	// Client request timeouts from cloudflare blog recommendations
 	// https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/
