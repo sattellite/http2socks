@@ -203,21 +203,12 @@ func (p *forwardProxy) proxyConnect(w http.ResponseWriter, req *http.Request) {
 
 func (p *forwardProxy) tunnelConn(dst io.WriteCloser, src io.ReadCloser) {
 	defer func() {
-		err := dst.Close()
-		if err != nil {
-			log.Println("tunnel: failed close dst")
-		}
+		_ = dst.Close()
 	}()
 	defer func() {
-		err := src.Close()
-		if err != nil {
-			log.Println("tunnel: failed close src")
-		}
+		_ = src.Close()
 	}()
-	_, err := io.Copy(dst, src)
-	if err != nil {
-		log.Println("tunnel: failed copy")
-	}
+	_, _ = io.Copy(dst, src)
 }
 
 func main() {
