@@ -124,10 +124,11 @@ func (p *forwardProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "Server Error", http.StatusInternalServerError)
 		log.Printf("ServeHTTP request error: %+v", err)
 	}
+
+	if resp == nil || resp.Body == nil {
+		return
+	}
 	defer func() {
-		if resp == nil || resp.Body == nil {
-			return
-		}
 		closeErr := resp.Body.Close()
 		if closeErr != nil {
 			log.Printf("ServeHTTP close body error: %+v", closeErr)
